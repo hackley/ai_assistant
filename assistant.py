@@ -7,9 +7,14 @@ import requests
 import json
 import webrtcvad
 import numpy as np
+from dotenv import load_dotenv
 
-# Set up OpenAI API key
-openai.api_key = "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"
+
+load_dotenv()  # Load environment variables from .env file
+
+# Get the value of OPENAI_API_KEY from the environment
+api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = api_key
 
 # Set up audio parameters
 RATE = 16000
