@@ -9,9 +9,25 @@ import webrtcvad
 import numpy as np
 import re
 from dotenv import load_dotenv
+import importlib
+import sys
+from pathlib import Path
 
-# actions
-from actions.create_file import create_file
+
+# Dynamically import action modules
+actions_path = Path('actions')
+sys.path.insert(0, str(actions_path.resolve()))
+action_modules = []
+ACTION_DESCRIPTIONS = []
+
+for action_file in actions_path.glob('*.py'):
+  if action_file.stem != '__init__':
+    module_name = action_file.stem
+    action_module = importlib.import_module(module_name)
+    action_modules.append(action_module)
+    ACTION_DESCRIPTIONS.append(action_module.description)
+
+
 
 load_dotenv()  # Load environment variables from .env file
 
@@ -31,23 +47,31 @@ RECORDING_PAUSE_DURATION_CHUNKS = 30
 VAD_MODE = 3
 vad = webrtcvad.Vad(VAD_MODE)
 
-INITIAL_PROMPT = """
+
+def format_action_descriptions(action_descriptions):
+  formatted_descriptions = []
+  for desc in action_descriptions:
+    action_str = f"- {desc['action']}: {desc['description']}\n"
+    args_str = "\n".join([f"  - {k}: {v}" for k, v in desc['arguments'].items()])
+    formatted_descriptions.append(f"{action_str}  {args_str}\n")
+  return "".join(formatted_descriptions)
+
+INITIAL_PROMPT = f"""
 You are a virtual assistant and code-writing partner. Your job is to listen to the user and respond with helpful information or, when the user asks you to, execute an action.
 If you decide that the user is asking you to execute an action, you'll need to respond in a very specific format that includes the name of the action and any parameters that are required to execute it. 
-For example, if the user wants you to create a file, you'll need to respond with: "[create_file(file_name=myfile.txt)]", where "myfile.txt" is the name of the file you want to create. 
-You have access to the following actions (arguments listed below each): 
-- create_file: Creates a file with the given name.
-  - file_name: The name of the file to create.
+For example, if the user wants you to create a file, you'll need to respond with: "[create_file(file_name=myfile.txt)]", where "myfile.txt" is the name of the file you want to create.  Do not include quotes around arguments.
+Multiple actions can be triggered with a single response. Include them in the order you want them executed.
+You have access to the following actions (arguments listed below each; you may only pass these arguments to the corresponding action, all others will be ignored; please follow the instructions shown for each argument): 
+{format_action_descriptions(ACTION_DESCRIPTIONS)}
 """
 
+print(INITIAL_PROMPT)
 
-def execute_action(action, args):
-  print(f"Executing action: {action}({args})")
-  if action == 'create_file':
-    return create_file(args)
-  else:
-    return f"Unknown action: {action}"
 
+def execute_action(action_name, args):
+  module = importlib.import_module(f"actions.{action_name}")
+  func = getattr(module, action_name)
+  return func(args)
 
 def parse_action_response(response):
   action_pattern = r'\[(?P<action>[a-z_]+)\((?P<args>[^\)]*)\)\]'
