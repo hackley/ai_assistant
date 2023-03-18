@@ -26,11 +26,19 @@ vad = webrtcvad.Vad(VAD_MODE)
 
 def record_audio():
     p = pyaudio.PyAudio()
-    stream = p.open(format=FORMAT,
-                    channels=CHANNELS,
-                    rate=RATE,
-                    input=True,
-                    frames_per_buffer=CHUNK)
+
+    # Get the default input device index
+    default_input_device_info = p.get_default_input_device_info()
+    default_input_device_index = default_input_device_info["index"]
+
+    stream = p.open(
+        format=FORMAT,
+        channels=CHANNELS,
+        rate=RATE,
+        input=True,
+        frames_per_buffer=CHUNK,
+        input_device_index=default_input_device_index
+    )
 
     print("Listening...")
 
