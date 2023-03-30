@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 
 
+MODEL = "gpt-4"
+
 # Dynamically import action modules
 actions_path = Path('actions')
 sys.path.insert(0, str(actions_path.resolve()))
@@ -164,7 +166,7 @@ def chat_with_gpt(text):
   ]
 
   response = openai.ChatCompletion.create(
-    model="gpt-3.5-turbo",
+    model=MODEL,
     messages=messages
   )
   reply = response.choices[0].message['content']
