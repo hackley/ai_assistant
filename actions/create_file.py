@@ -16,4 +16,4 @@ def create_file(args):
       f.write('')
     return f"Created a file named '{file_name}'."
   else:
-    return "Couldn't create a file. No name provided."
+    return "ERROR: Couldn't create a file. No name provided."

@@ -22,6 +22,6 @@ def open_website(args):
 
       return f"Opened a new tab with the website '{url}'."
     except Exception as e:
-      return f"Couldn't open the website: {e}"
+      return f"ERROR: Couldn't open the website: {e}"
   else:
-    return "Couldn't open the website. No URL provided."
+    return "ERROR: Couldn't open the website. No URL provided."

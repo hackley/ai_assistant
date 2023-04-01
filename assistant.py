@@ -62,7 +62,7 @@ INITIAL_PROMPT = f"""
 You are a virtual assistant and code-writing partner. Your job is to listen to the user and respond with helpful information or, when the user asks you to, execute an action.
 If you decide that the user is asking you to execute an action, you'll need to respond in a very specific format that includes the name of the action and any parameters that are required to execute it. 
 For example, if the user wants you to create a file, you'll need to respond with: "[create_file(file_name=myfile.txt)]", where "myfile.txt" is the name of the file you want to create.  Do not include quotes around arguments.
-Multiple actions can be triggered with a single response. Include them in the order you want them executed.
+Multiple actions can be triggered with a single response. Include them in the order you want them executed. However, if you'd like to execute an action that requires a response from the user or system, you'll need to wait for a response before executing the next action.
 You have access to the following actions (arguments listed below each; you may only pass these arguments to the corresponding action, all others will be ignored; please follow the instructions shown for each argument): 
 {format_action_descriptions(ACTION_DESCRIPTIONS)}
 """
@@ -194,23 +194,18 @@ def main():
       response = chat_with_gpt(text)
       actions_with_args = parse_action_response(response)
 
-      if actions_with_args:
-        print(f'ChatGPT: {response}')
-        chatgpt_message = {"role": "ChatGPT", "content": response}
-        with open(transcript_file_name, 'a') as f:
-          f.write(json.dumps(chatgpt_message) + '\n')
+      print(f'ChatGPT: {response}')
+      chatgpt_message = {"role": "ChatGPT", "content": response}
+      with open(transcript_file_name, 'a') as f:
+        f.write(json.dumps(chatgpt_message) + '\n')
 
+      if actions_with_args:
         for action, args in actions_with_args:
           action_result = execute_action(action, args)
           print(f'System: {action_result}')
           system_message = {"role": "system", "content": action_result}
           with open(transcript_file_name, 'a') as f:
             f.write(json.dumps(system_message) + '\n')
-      else:
-        print(f'ChatGPT: {response}')
-        chatgpt_message = {"role": "ChatGPT", "content": response}
-        with open(transcript_file_name, 'a') as f:
-          f.write(json.dumps(chatgpt_message) + '\n')
     else:
       print("Couldn't transcribe audio. Try again.")
 

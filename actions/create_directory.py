@@ -8,16 +8,15 @@ description = {
     }
 }
 
-
 def create_directory(args):
   path = args.get('directory_path')
   if path:
     try:
-        os.makedirs(path)
-        return f"Nested directory created: {path}"
+      os.makedirs(path)
+      return f"Nested directory created: {path}"
     except FileExistsError:
-        return f"Directory already exists: {path}"
+      return f"ERROR: Directory already exists: {path}"
     except Exception as e:
-        return f"Error creating directory: {e}"
+      return f"ERROR: Error creating directory: {e}"
   else:
-    return "Couldn't create a directory. No path provided."
+    return "ERROR: Couldn't create a directory. No path provided."
