@@ -70,6 +70,9 @@ You have access to the following actions (arguments listed below each; you may o
 Please respond with "Let's get to work!" to begin.
 """
 
+# TODO: ask the AI to always respond in JSON format. with a "response" key and an "actions" key. 
+# actions is an array of hashes
+
 
 def execute_action(action_name, args):
   module = importlib.import_module(f"actions.{action_name}")
