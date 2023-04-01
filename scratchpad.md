@@ -1,0 +1,1 @@
+please read tmp/my_file.txt and copy the contents to a new file in the same directory called "hello.txt"

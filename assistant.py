@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 import importlib
 import sys
 from pathlib import Path
+import argparse
 
 
 MODEL = "gpt-4"
@@ -60,14 +61,14 @@ def format_action_descriptions(action_descriptions):
 
 INITIAL_PROMPT = f"""
 You are a virtual assistant and code-writing partner. Your job is to listen to the user and respond with helpful information or, when the user asks you to, execute an action.
-If you decide that the user is asking you to execute an action, you'll need to respond in a very specific format that includes the name of the action and any parameters that are required to execute it. 
-For example, if the user wants you to create a file, you'll need to respond with: "[create_file(file_name=myfile.txt)]", where "myfile.txt" is the name of the file you want to create.  Do not include quotes around arguments.
-Multiple actions can be triggered with a single response. Include them in the order you want them executed. However, if you'd like to execute an action that requires a response from the user or system, you'll need to wait for a response before executing the next action.
+If you decide that the user is asking you to execute an action, you'll need to respond in a very specific format. Each action request should be wrapped in square brackets and include the name of the action and any arguments in parentheses. 
+For example, if the user wants you to create a file, you'll need to respond with: "[create_file(file_name=myfile.txt)]", where "myfile.txt" is the name of the file you want to create. Do not include quotes around arguments.
+Multiple actions can be triggered with a single response. Include them in the order you want them executed and put each action on it's own line. However, if you'd like to execute an action that requires a response from the user or system, you'll need to wait for a response before executing the next action.
+The result of these actions will be returned to you in the order they were executed, in JSON format.
 You have access to the following actions (arguments listed below each; you may only pass these arguments to the corresponding action, all others will be ignored; please follow the instructions shown for each argument): 
 {format_action_descriptions(ACTION_DESCRIPTIONS)}
+Please respond with "Let's get to work!" to begin.
 """
-
-print(INITIAL_PROMPT)
 
 
 def execute_action(action_name, args):
@@ -159,57 +160,110 @@ def transcribe_audio():
   return transcript.text
 
 
-def chat_with_gpt(text):
-  messages = [
-    {"role": "system", "content": INITIAL_PROMPT},
-    {"role": "user", "content": text}
-  ]
+# where should we save the transcript?
+transcript_file_name = (
+    "transcripts/"
+    + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    + "_transcript.jsonl"
+)
 
+messages = []
+
+sender_options = {
+  "system": "System",
+  "user": "You",
+  "assistant": "Assistant"
+}
+
+
+def commit_message(sender, text):
+  message = {"role": sender, "content": text}
+  messages.append(message)
+  with open(transcript_file_name, "a") as f:
+    f.write(json.dumps(message) + '\n')
+  
+  if sender != "user":
+    print_message(sender, text)
+
+
+def print_message(sender, text):
+  sender_pretty = sender_options[sender]
+  print(f'{sender_pretty}: {text}')
+
+
+def send_message(sender, text):
+  commit_message(sender, text)
+  return chat_with_gpt(messages)
+
+
+def chat_with_gpt(messages): 
   response = openai.ChatCompletion.create(
     model=MODEL,
-    messages=messages
+    messages=messages 
   )
-  reply = response.choices[0].message['content']
+  reply = response.choices[0].message["content"]
 
-  return reply.strip()
+  # For debuggin purposes. Maybe make this off by default at some point.
+  with open('tmp/last_request.json', "a") as f:
+    messages_hash = {"messages": messages}
+    f.write(json.dumps(messages_hash))
+
+  formatted_reply = reply.strip()
+  commit_message("assistant", formatted_reply)
+
+  actions_with_args = parse_action_response(formatted_reply)
+  if actions_with_args:
+    results = []
+    for action_name, args in actions_with_args:
+      res = execute_action(action_name, args)
+      results.append([action_name, res])
+    system_reply = formatted_action_results(results)
+    send_message('system', system_reply)
+
+  return True
 
 
-def main():
-  transcript_file_name = 'tmp/' + \
-    datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S') + '_transcript.jsonl'
+def formatted_action_results(results):
+  formatted_result = "Here are the results of your actions, in JSON format:\n"
+  for index, (action_name, result) in enumerate(results, start=1):
+    formatted_result += f'{{order: {index}, action: "{action_name}", result: "{result}"}}\n'
+  return formatted_result
+
+def parse_arguments(): 
+  parser = argparse.ArgumentParser(
+    description="Voice-activated GPT assistant")
+  parser.add_argument(
+    "--voice-mode",
+    action="store_true",
+    help="Use voice mode instead of text mode (default: False)",
+  )
+  args = parser.parse_args()
+  return args.voice_mode
+
+
+def main(mode):
+
+  send_message("system", INITIAL_PROMPT)
 
   while True:
-    record_audio()
-    text = transcribe_audio()
-    if text:
-      print(f'You: {text}')
-      user_message = {"role": "user", "content": text}
-      with open(transcript_file_name, 'a') as f:
-        f.write(json.dumps(user_message) + '\n')
+    if mode:  # Check if the mode is voice or text
+      record_audio()
+      text = transcribe_audio()
+      print_message("user", text)
+    else:
+      text = input("You: ")
 
-      if text.lower() == "exit.":
-        print("Exiting the conversation.")
+    if text:
+      if text.lower() == "exit." or text.lower() == "exit":
+        commit_message('user', text)
+        commit_message('system', "Goodbye.")
         break
 
-      response = chat_with_gpt(text)
-      actions_with_args = parse_action_response(response)
-
-      print(f'ChatGPT: {response}')
-      chatgpt_message = {"role": "ChatGPT", "content": response}
-      with open(transcript_file_name, 'a') as f:
-        f.write(json.dumps(chatgpt_message) + '\n')
-
-      if actions_with_args:
-        for action, args in actions_with_args:
-          action_result = execute_action(action, args)
-          print(f'System: {action_result}')
-          system_message = {"role": "system", "content": action_result}
-          with open(transcript_file_name, 'a') as f:
-            f.write(json.dumps(system_message) + '\n')
+      send_message("user", text)
     else:
       print("Couldn't transcribe audio. Try again.")
 
 
-
-if __name__ == '__main__':
-  main()
+if __name__ == "__main__":
+  voice_mode = parse_arguments()
+  main(voice_mode)
