@@ -59,14 +59,14 @@ def format_action_descriptions(action_descriptions):
     formatted_descriptions.append(f"{action_str}  {args_str}\n")
   return "".join(formatted_descriptions)
 
+
+# Load the prompt
+with open('system_prompt.txt', 'r') as file:
+  prompt_content = file.read()
+
 INITIAL_PROMPT = f"""
-You are a virtual assistant and code-writing partner. Your job is to listen to the user and respond with helpful information or, when the user asks you to, execute an action.
-If you decide that the user is asking you to execute an action, you'll need to respond in a very specific format. Each action request should be wrapped in square brackets and include the name of the action and any arguments in parentheses. 
-For example, if the user wants you to create a file, you'll need to respond with: "[create_file(file_name=myfile.txt)]", where "myfile.txt" is the name of the file you want to create. Do not include quotes around arguments.
-Multiple actions can be triggered with a single response. Include them in the order you want them executed and put each action on it's own line. However, if you'd like to execute an action that requires a response from the user or system, you'll need to wait for a response before executing the next action.
-The result of these actions will be returned to you in the order they were executed, in JSON format.
-You have access to the following actions (arguments listed below each; you may only pass these arguments to the corresponding action, all others will be ignored; please follow the instructions shown for each argument): 
-{format_action_descriptions(ACTION_DESCRIPTIONS)}
+{prompt_content}
+{format_action_descriptions(ACTION_DESCRIPTIONS)}\n
 Please respond with "Let's get to work!" to begin.
 """
 
@@ -78,23 +78,6 @@ def execute_action(action_name, args):
   module = importlib.import_module(f"actions.{action_name}")
   func = getattr(module, action_name)
   return func(args)
-
-def parse_action_response(response):
-  action_pattern = r'\[(?P<action>[a-z_]+)\((?P<args>[^\)]*)\)\]'
-  matches = re.finditer(action_pattern, response)
-  actions_with_args = []
-
-  for match in matches:
-    action = match.group('action')
-    args_str = match.group('args')
-    args_list = [arg.strip() for arg in args_str.split(',')]
-    args = {}
-    for arg in args_list:
-      key, value = arg.split('=')
-      args[key.strip()] = value.strip()
-    actions_with_args.append((action, args))
-
-  return actions_with_args
 
 
 def record_audio():
@@ -170,6 +153,18 @@ transcript_file_name = (
     + "_transcript.jsonl"
 )
 
+def set_transcript_file_name(loaded_name=None):
+  global transcript_file_name
+  if loaded_name is None:
+    transcript_file_name = (
+        "transcripts/"
+        + datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        + "_transcript.jsonl"
+    )
+  else:
+    transcript_file_name = loaded_name
+  return transcript_file_name
+
 messages = []
 
 sender_options = {
@@ -179,13 +174,13 @@ sender_options = {
 }
 
 
-def commit_message(sender, text):
+def commit_message(sender, text, should_print=True):
   message = {"role": sender, "content": text}
   messages.append(message)
   with open(transcript_file_name, "a") as f:
     f.write(json.dumps(message) + '\n')
   
-  if sender != "user":
+  if should_print:
     print_message(sender, text)
 
 
@@ -194,79 +189,105 @@ def print_message(sender, text):
   print(f'{sender_pretty}: {text}')
 
 
-def send_message(sender, text):
-  commit_message(sender, text)
-  return chat_with_gpt(messages)
+def send_message(sender, text, should_print=True):
+  commit_message(sender, text, should_print)
+  return chat_with_gpt()
 
 
-def chat_with_gpt(messages): 
-  response = openai.ChatCompletion.create(
+def process_reply_from_assistant(response_string):
+  response = json.loads(response_string)
+
+  if 'reply' in response:
+    reply = response['reply']
+    print_message('assistant', reply)
+
+  if 'actions' in response:
+    actions = response['actions']
+    all_results = []
+    for action in actions:
+      action_name = action["action_name"]
+      args = action["args"]
+      result = execute_action(action_name, args)
+      all_results.append((action_name, result))
+    system_reply = formatted_action_results(all_results)
+    send_message('system', system_reply, True)
+
+
+def chat_with_gpt(): 
+  request = openai.ChatCompletion.create(
     model=MODEL,
     messages=messages 
   )
-  reply = response.choices[0].message["content"]
-
-  # For debuggin purposes. Maybe make this off by default at some point.
-  with open('tmp/last_request.json', "a") as f:
-    messages_hash = {"messages": messages}
-    f.write(json.dumps(messages_hash))
-
-  formatted_reply = reply.strip()
-  commit_message("assistant", formatted_reply)
-
-  actions_with_args = parse_action_response(formatted_reply)
-  if actions_with_args:
-    results = []
-    for action_name, args in actions_with_args:
-      res = execute_action(action_name, args)
-      results.append([action_name, res])
-    system_reply = formatted_action_results(results)
-    send_message('system', system_reply)
-
+  response_string = request.choices[0].message["content"].strip()
+  commit_message("assistant", response_string, False)
+  process_reply_from_assistant(response_string)
   return True
 
 
 def formatted_action_results(results):
-  formatted_result = "Here are the results of your actions, in JSON format:\n"
-  for index, (action_name, result) in enumerate(results, start=1):
-    formatted_result += f'{{order: {index}, action: "{action_name}", result: "{result}"}}\n'
-  return formatted_result
+  system_response = {"action_results": results}
+  return json.dumps(system_response)
+
 
 def parse_arguments(): 
-  parser = argparse.ArgumentParser(
-    description="Voice-activated GPT assistant")
+  parser = argparse.ArgumentParser(description="GPT coding assistant")
   parser.add_argument(
     "--voice-mode",
     action="store_true",
     help="Use voice mode instead of text mode (default: False)",
   )
-  args = parser.parse_args()
-  return args.voice_mode
+  parser.add_argument(
+    "--load-from",
+    dest="load_from",
+    default=None,
+    help="Transcript file to boot from (default: None)"
+  )
+  return parser.parse_args()
 
 
-def main(mode):
+def load_conversation():
+  # load the transcript into memory
+  with open(transcript_file_name, "r") as f:
+    for line in f:
+      message = json.loads(line)
+      messages.append(message)
 
-  send_message("system", INITIAL_PROMPT)
+  # If the last message is from the assistant, then we should process it on our end.
+  # If it's from the user or the system, then we should send the messages to the assistant.
+  last_message = messages[-1]
+  if last_message["role"] == "assistant":
+    process_reply_from_assistant(last_message["content"])
+  else:
+    chat_with_gpt()
+
+
+def main(options):
+  if options.load_from:
+    set_transcript_file_name(options.load_from)
+    load_conversation()
+  else:
+    set_transcript_file_name()
+    send_message("system", INITIAL_PROMPT)
 
   while True:
-    if mode:  # Check if the mode is voice or text
+    if options.voice_mode:
       record_audio()
       text = transcribe_audio()
-      print_message("user", text)
     else:
       text = input("You: ")
 
     if text:
       if text.lower() == "exit." or text.lower() == "exit":
-        commit_message('user', text)
-        commit_message('system', "Goodbye.")
+        if options.voice_mode:
+          print_message('user', text)
+        print_message('system', "Goodbye.")
         break
-
-      send_message("user", text)
+      else:
+        send_message("user", text, options.voice_mode)
     else:
-      print("Couldn't transcribe audio. Try again.")
+      print("No input detected. Try again.")
 
 
 if __name__ == "__main__":
-  voice_mode = parse_arguments()
-  main(voice_mode)
+  options = parse_arguments()
+  main(options)
