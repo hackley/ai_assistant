@@ -161,23 +161,17 @@ sender_options = {
   "system": "System",
   "user": "You",
   "assistant": "Assistant",
-  "automated": "Automated",
 }
 
 
-def commit_message(sender, text, should_print=True):
-  role = sender
-  content = text
-  if role == 'automated':
-    role = 'user'
-    content = f'Automated Response: {text}'
-  message = {"role": role, "content": content}
+def commit_message(sender, content, should_print=True):
+  message = {"role": sender, "content": content}
   messages.append(message)
   with open(transcript_file_name, "a") as f:
     f.write(json.dumps(message) + '\n')
   
   if should_print:
-    print_message(sender, text)
+    print_message(sender, content)
 
 
 def print_message(sender, text):
@@ -206,7 +200,7 @@ def process_reply_from_assistant(response_string):
       result = execute_action(action_name, args)
       all_results.append({"action_name": action_name, "result": result})
     action_results_reply = formatted_action_results(all_results)
-    send_message('automated', action_results_reply, True)
+    send_message('user', action_results_reply, True)
 
 
 def chat_with_gpt(): 
@@ -252,7 +246,7 @@ def load_conversation():
       messages.append(message)
 
   # If the last message is from the assistant, then we should process it on our end.
-  # If it's from the user or "automated", then we should send the messages to the assistant.
+  # If it's from the user then we should send the messages to the assistant.
   last_message = messages[-1]
   if last_message["role"] == "assistant":
     process_reply_from_assistant(last_message["content"])
@@ -272,7 +266,7 @@ def bootstrap_new_conversation():
   commit_message("system", system_message)
   commit_message("user", "Let's test something, please call an action.", True)
   commit_message("assistant", '{"actions": [{"action_name": "test_action", "args": {"input": "xyz123"}}]}', True)
-  commit_message('automated', 'Automated Response: {"action_results": [{"action_name": "test_action", "result": "xyz123"}]}', True)
+  commit_message('user', '{"action_results": [{"action_name": "test_action", "result": "xyz123"}]}', True)
   commit_message("assistant", '{"reply": "Looks like the action worked. It returned: xyz123"}', True)
   commit_message("user", "Great, thanks! Reply with \"Let's get started\" when you're ready.", True)
   chat_with_gpt()
@@ -297,7 +291,7 @@ def main(options):
       if text.lower() == "exit." or text.lower() == "exit":
         if options.voice_mode:
           print_message('user', text)
-        print_message('automated', "Goodbye.")
+        print_message('System', "Goodbye.")
         break
       else:
         send_message("user", text, options.voice_mode)
