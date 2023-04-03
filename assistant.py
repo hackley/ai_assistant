@@ -60,16 +60,6 @@ def format_action_descriptions(action_descriptions):
   return "".join(formatted_descriptions)
 
 
-# Load the prompt
-with open('system_prompt.txt', 'r') as file:
-  prompt_content = file.read()
-
-INITIAL_PROMPT = f"""
-{prompt_content}
-{format_action_descriptions(ACTION_DESCRIPTIONS)}\n
-Please respond with "Let's get to work!" to begin.
-"""
-
 # TODO: ask the AI to always respond in JSON format. with a "response" key and an "actions" key. 
 # actions is an array of hashes
 
@@ -170,12 +160,18 @@ messages = []
 sender_options = {
   "system": "System",
   "user": "You",
-  "assistant": "Assistant"
+  "assistant": "Assistant",
+  "automated": "Automated",
 }
 
 
 def commit_message(sender, text, should_print=True):
-  message = {"role": sender, "content": text}
+  role = sender
+  content = text
+  if role == 'automated':
+    role = 'user'
+    content = f'Automated Response: {text}'
+  message = {"role": role, "content": content}
   messages.append(message)
   with open(transcript_file_name, "a") as f:
     f.write(json.dumps(message) + '\n')
@@ -186,7 +182,7 @@ def commit_message(sender, text, should_print=True):
 
 def print_message(sender, text):
   sender_pretty = sender_options[sender]
-  print(f'{sender_pretty}: {text}')
+  print(f'\n\n{sender_pretty}: {text}')
 
 
 def send_message(sender, text, should_print=True):
@@ -208,12 +204,15 @@ def process_reply_from_assistant(response_string):
       action_name = action["action_name"]
       args = action["args"]
       result = execute_action(action_name, args)
-      all_results.append((action_name, result))
-    system_reply = formatted_action_results(all_results)
-    send_message('system', system_reply, True)
+      all_results.append({"action_name": action_name, "result": result})
+    action_results_reply = formatted_action_results(all_results)
+    send_message('automated', action_results_reply, True)
 
 
 def chat_with_gpt(): 
+  with open('tmp/last_request.json', 'w') as f:
+    f.write(json.dumps({"messages": messages}))
+
   request = openai.ChatCompletion.create(
     model=MODEL,
     messages=messages 
@@ -225,8 +224,8 @@ def chat_with_gpt():
 
 
 def formatted_action_results(results):
-  system_response = {"action_results": results}
-  return json.dumps(system_response)
+  formatted_results = {"action_results": results}
+  return json.dumps(formatted_results)
 
 
 def parse_arguments(): 
@@ -253,7 +252,7 @@ def load_conversation():
       messages.append(message)
 
   # If the last message is from the assistant, then we should process it on our end.
-  # If it's from the user or the system, then we should send the messages to the assistant.
+  # If it's from the user or "automated", then we should send the messages to the assistant.
   last_message = messages[-1]
   if last_message["role"] == "assistant":
     process_reply_from_assistant(last_message["content"])
@@ -261,13 +260,31 @@ def load_conversation():
     chat_with_gpt()
 
 
+def bootstrap_new_conversation():
+  # Load the system prompt
+  with open('system_prompt.txt', 'r') as file:
+    prompt_content = file.read()
+
+  system_message = f"""
+  {prompt_content}
+  {format_action_descriptions(ACTION_DESCRIPTIONS)}\n
+  """
+  commit_message("system", system_message)
+  commit_message("user", "Let's test something, please call an action.", True)
+  commit_message("assistant", '{"actions": [{"action_name": "test_action", "args": {"input": "xyz123"}}]}', True)
+  commit_message('automated', 'Automated Response: {"action_results": [{"action_name": "test_action", "result": "xyz123"}]}', True)
+  commit_message("assistant", '{"reply": "Looks like the action worked. It returned: xyz123"}', True)
+  commit_message("user", "Great, thanks! Reply with \"Let's get started\" when you're ready.", True)
+  chat_with_gpt()
+
 def main(options):
   if options.load_from:
     set_transcript_file_name(options.load_from)
     load_conversation()
   else:
     set_transcript_file_name()
-    send_message("system", INITIAL_PROMPT)
+    bootstrap_new_conversation()
+    # send_message("system", INITIAL_PROMPT)
 
   while True:
     if options.voice_mode:
@@ -280,7 +297,7 @@ def main(options):
       if text.lower() == "exit." or text.lower() == "exit":
         if options.voice_mode:
           print_message('user', text)
-        print_message('system', "Goodbye.")
+        print_message('automated', "Goodbye.")
         break
       else:
         send_message("user", text, options.voice_mode)

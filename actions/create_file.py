@@ -5,15 +5,17 @@ description = {
   "action": "create_file",
   "description": "Creates a file with the given name.",
   "arguments": {
-    "file_name": "The name of the file to create.",
+    "file_path": "The path/name of the file to create. This should be a relative path from the working directory.",
   }
 }
 
+working_directory = "/Users/username/Projects/my_project"
+
 def create_file(args):
-  file_name = args.get('file_name')
-  if file_name:
-    with open(file_name, 'w') as f:
+  file_path = args.get('file_path')
+  if file_path:
+    with open(file_path, 'w') as f:
       f.write('')
-    return f"Created a file named '{file_name}'."
+    return f"Created a file at '{file_path}'."
   else:
-    return "ERROR: Couldn't create a file. No name provided."
+    return "ERROR: Couldn't create a file. No path provided."
