@@ -16,6 +16,7 @@ import argparse
 
 
 MODEL = "gpt-4"
+TEMPERATURE = 0.3
 
 # Dynamically import action modules
 actions_path = Path('actions')
@@ -184,23 +185,31 @@ def send_message(sender, text, should_print=True):
   return chat_with_gpt()
 
 
+def is_valid_json(text):
+    try:
+        parsed = json.loads(text)
+        return True, parsed
+    except json.JSONDecodeError:
+        return False, None
+
+
 def process_reply_from_assistant(response_string):
-  response = json.loads(response_string)
-
-  if 'reply' in response:
-    reply = response['reply']
-    print_message('assistant', reply)
-
-  if 'actions' in response:
-    actions = response['actions']
-    all_results = []
-    for action in actions:
-      action_name = action["action_name"]
-      args = action["args"]
-      result = execute_action(action_name, args)
-      all_results.append({"action_name": action_name, "result": result})
-    action_results_reply = formatted_action_results(all_results)
-    send_message('user', action_results_reply, True)
+  is_actions, parsed_json = is_valid_json(response_string)
+  if is_actions:
+    if 'actions' in parsed_json:
+      actions = parsed_json['actions']
+      all_results = []
+      for action in actions:
+        action_name = action["action_name"]
+        args = action["args"]
+        result = execute_action(action_name, args)
+        all_results.append({"action_name": action_name, "result": result})
+      action_results_reply = formatted_action_results(all_results)
+      send_message('system', action_results_reply, True)
+    else:
+      send_message('system', "No actions were found in your JSON hash.", True)
+  else:
+    print_message('assistant', response_string)
 
 
 def chat_with_gpt(): 
@@ -209,7 +218,8 @@ def chat_with_gpt():
 
   request = openai.ChatCompletion.create(
     model=MODEL,
-    messages=messages 
+    messages=messages,
+    temperature=TEMPERATURE,
   )
   response_string = request.choices[0].message["content"].strip()
   commit_message("assistant", response_string, False)
@@ -246,7 +256,7 @@ def load_conversation():
       messages.append(message)
 
   # If the last message is from the assistant, then we should process it on our end.
-  # If it's from the user then we should send the messages to the assistant.
+  # If it's from the user/system then we should send the messages to the assistant.
   last_message = messages[-1]
   if last_message["role"] == "assistant":
     process_reply_from_assistant(last_message["content"])
@@ -262,13 +272,14 @@ def bootstrap_new_conversation():
   system_message = f"""
   {prompt_content}
   {format_action_descriptions(ACTION_DESCRIPTIONS)}\n
+  Please respond with 'Let's get to work!' to begin.
   """
   commit_message("system", system_message)
-  commit_message("user", "Let's test something, please call an action.", True)
-  commit_message("assistant", '{"actions": [{"action_name": "test_action", "args": {"input": "xyz123"}}]}', True)
-  commit_message('user', '{"action_results": [{"action_name": "test_action", "result": "xyz123"}]}', True)
-  commit_message("assistant", '{"reply": "Looks like the action worked. It returned: xyz123"}', True)
-  commit_message("user", "Great, thanks! Reply with \"Let's get started\" when you're ready.", True)
+  # commit_message("user", "Let's test something, please call an action.", True)
+  # commit_message("assistant", '{"actions": [{"action_name": "test_action", "args": {"input": "xyz123"}}]}', True)
+  # commit_message('user', '{"action_results": [{"action_name": "test_action", "result": "xyz123"}]}', True)
+  # commit_message("assistant", '{"reply": "Looks like the action worked. It returned: xyz123"}', True)
+  # commit_message("user", "Great, thanks! Reply with \"Let's get started\" when you're ready.", True)
   chat_with_gpt()
 
 def main(options):
