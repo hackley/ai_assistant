@@ -1,19 +1,22 @@
 import os
-from langchain.tools import BaseTool
+from tool import Tool
 
-working_directory = "/Users/nathan/Code/assistant/tmp/project"
-
-class CreateFile(BaseTool):
+class CreateFile(Tool):
     name = "CreateFile"
     description = "Create a file at a given path."
+
+    def working_directory(self) -> str:
+        """Return the working directory."""
+        return self.settings["working_directory"]
 
     def _run(self, file_path: str) -> str:
         """Use the tool."""
         if file_path:
-            full_file_path = os.path.join(working_directory, file_path)
+            directory = self.working_directory()
+            full_file_path = os.path.join(directory, file_path)
             normalized_file_path = os.path.normpath(os.path.abspath(full_file_path))
 
-            if normalized_file_path.startswith(working_directory):
+            if normalized_file_path.startswith(directory):
                 with open(normalized_file_path, 'w') as f:
                     f.write('')
                 return f"Created a file at '{normalized_file_path}'."
@@ -22,7 +25,3 @@ class CreateFile(BaseTool):
         else:
            return "ERROR: Couldn't create a file. No path provided."
 
-
-    async def _arun(self, file_path: str) -> str:
-        """Use the tool asynchronously."""
-        raise NotImplementedError("CreateFile does not support async")

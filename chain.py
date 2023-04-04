@@ -1,14 +1,14 @@
 import os
 import sys
-import importlib
 from pathlib import Path
 from dotenv import load_dotenv
+import json
 
 from langchain.memory import ConversationBufferMemory
 from langchain.chat_models import ChatOpenAI
 from langchain.agents import initialize_agent
 
-from helpers import to_camel_case
+from helpers import init_tool
 
 
 load_dotenv()  # Load environment variables from .env file
@@ -16,21 +16,24 @@ load_dotenv()  # Load environment variables from .env file
 # Get the value of OPENAI_API_KEY from the environment
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Config
-EXIT_WORDS = ["exit", "exit."]
+
+# Load Settings
+settings_path = Path('settings.json')
+with open(settings_path, 'r') as f:
+    settings = json.load(f)
+
 
 # Load Tools
 tools_path = Path('tools')
 sys.path.insert(0, str(tools_path.resolve()))
 tools = []
 for tool_file in tools_path.glob('*.py'):
-  if tool_file.stem != '__init__':
-    module_name = tool_file.stem
-    klass_name = to_camel_case(module_name)
-    tool_module = importlib.import_module(module_name)
-    klass = getattr(tool_module, klass_name)
-    tools.append(klass())
+    if tool_file.stem != '__init__':
+        tool = init_tool(tool_file, settings)
+        if tool is not None:
+            tools.append(tool)
 print("Tools:", tools)
+
 
 memory = ConversationBufferMemory(
     memory_key="chat_history", 
@@ -47,7 +50,7 @@ agent_chain = initialize_agent(
 
 while True:
     user_input = input("You: ")
-    if user_input.lower() in EXIT_WORDS:
+    if user_input.lower() in settings['exit_words']:
         print("System: Goodbye.")
         break
     response = agent_chain.run(user_input)

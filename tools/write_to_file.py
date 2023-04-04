@@ -1,11 +1,11 @@
 import os
-from langchain.tools import BaseTool
+from tool import Tool
 
 
-class WriteToFile(BaseTool):
+class WriteToFile(Tool):
     name = "WriteToFile"
     description = '''
-      This action replaces the contents of a file and returns 'true' if successful.
+      Replaces the contents of a file and returns 'true' if successful.
       `args` should be a dictionary with the following keys: file_path, content.
     '''
 
@@ -22,7 +22,3 @@ class WriteToFile(BaseTool):
                 return f"ERROR: {e}"
         else:
             return f"ERROR: missing arguments"
-
-    async def _arun(self, file_path: str) -> str:
-        """Use the tool asynchronously."""
-        raise NotImplementedError("WriteToFile does not support async")

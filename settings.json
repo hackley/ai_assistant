@@ -1,0 +1,9 @@
+{
+  "working_directory": "/Users/nathan/Code/assistant/tmp/project",
+  "enabled_tools": [
+    "create_file",
+    "read_file",
+    "write_to_file"
+  ],
+  "exit_words": ["exit", "exit."]
+}
