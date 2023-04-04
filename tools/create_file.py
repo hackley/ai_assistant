@@ -1,22 +1,16 @@
-import os
 from tool import Tool
+from helpers import check_directory_permission
 
 class CreateFile(Tool):
     name = "CreateFile"
     description = "Create a file at a given path."
 
-    def working_directory(self) -> str:
-        """Return the working directory."""
-        return self.settings["working_directory"]
-
     def _run(self, file_path: str) -> str:
         """Use the tool."""
         if file_path:
-            directory = self.working_directory()
-            full_file_path = os.path.join(directory, file_path)
-            normalized_file_path = os.path.normpath(os.path.abspath(full_file_path))
-
-            if normalized_file_path.startswith(directory):
+            dir_allowed, normalized_file_path = check_directory_permission(
+                file_path, self.settings)
+            if dir_allowed:
                 with open(normalized_file_path, 'w') as f:
                     f.write('')
                 return f"Created a file at '{normalized_file_path}'."

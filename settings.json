@@ -1,5 +1,5 @@
 {
-  "working_directory": "/Users/nathan/Code/assistant/tmp/project",
+  "working_directory": "/Users/nathan/Code/assistant",
   "enabled_tools": [
     "create_file",
     "read_file",

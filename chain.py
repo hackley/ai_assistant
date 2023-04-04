@@ -32,7 +32,6 @@ for tool_file in tools_path.glob('*.py'):
         tool = init_tool(tool_file, settings)
         if tool is not None:
             tools.append(tool)
-print("Tools:", tools)
 
 
 memory = ConversationBufferMemory(
@@ -47,6 +46,7 @@ agent_chain = initialize_agent(
     agent="chat-conversational-react-description", 
     verbose=True, 
     memory=memory)
+
 
 while True:
     user_input = input("You: ")
