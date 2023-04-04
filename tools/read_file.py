@@ -3,7 +3,12 @@ from helpers import check_directory_permission
 
 class ReadFile(Tool):
     name = "ReadFile"
-    description = "Read a file and return its contents."
+    description = '''
+      Returns the contents of a file.
+      Useful when you want to learn about the contents of a file.
+      Useful when you need to understand the user's code. 
+      `file_path` should be a string with the path to a single file.
+    '''
 
     def _run(self, file_path: str) -> str:
         """Use the tool."""
