@@ -17,13 +17,12 @@ def list_message(session_id):
     return jsonify(response)
 
 
-@app.route('/api/messages', methods=['POST'])
-def create_message():
+@app.route('/api/conversation/<session_id>/messages', methods=['POST'])
+def create_message(session_id):
     params = request.get_json()
 
     if 'message' in params:
         message = params['message']
-        session_id = params['session_id']
         reply = run_agent(session_id, message)
         response = {
             'status': 'success',
