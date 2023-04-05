@@ -5,12 +5,12 @@ from dotenv import load_dotenv
 import json
 
 from langchain.memory import ConversationBufferMemory
-from langchain.memory.chat_message_histories import RedisChatMessageHistory
 from langchain.chat_models import ChatOpenAI
 from langchain.agents import initialize_agent
 from langchain import PromptTemplate
 
 from helpers import init_tool
+from chat_history import ChatMessageHistory
 
 
 load_dotenv()  # Load environment variables from .env file
@@ -36,12 +36,6 @@ for tool_file in tools_path.glob('*.py'):
             tools.append(tool)
 
 
-message_history = RedisChatMessageHistory(
-    url='redis://localhost:6379/0', ttl=600, session_id='my-session')
-
-memory = ConversationBufferMemory(
-    memory_key="chat_history", chat_memory=message_history, return_messages=True)
-
 model = ChatOpenAI(temperature=0, model_name="gpt-4")
 
 template = '''
@@ -52,17 +46,25 @@ template = '''
 '''
 
 prompt = PromptTemplate(
-    input_variables=["chat_history", "question"], template=template)
-
-agent_chain = initialize_agent(
-    llm=model,
-    prompt=prompt,
-    tools=tools,
-    memory=memory,
-    agent="chat-conversational-react-description",
-    verbose=True)
+    input_variables=["chat_history", "question"], 
+    template=template)
 
 
-def run_agent(user_input):
+
+def run_agent(session_id, user_input):
+  print(prompt)
+  message_history = ChatMessageHistory(session_id=session_id)
+  memory = ConversationBufferMemory(
+      memory_key="chat_history",
+      chat_memory=message_history,
+      return_messages=True)
+  agent_chain = initialize_agent(
+      llm=model,
+      prompt=prompt,
+      tools=tools,
+      memory=memory,
+      agent="chat-conversational-react-description",
+      verbose=True)
   response = agent_chain.run(user_input)
+  message_history.connection.close()
   return response
