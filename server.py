@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from agent import run_agent
 from chat_history import ChatMessageHistory
 
@@ -35,6 +35,11 @@ def create_message(session_id):
         }
 
     return jsonify(response)
+
+
+@app.route('/chat/<session_id>')
+def chat_ui(session_id):
+    return render_template('chat.html', session_id=session_id)
 
 
 # Run the Flask app

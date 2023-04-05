@@ -12,9 +12,12 @@ class CreateFile(Tool):
             dir_allowed, normalized_file_path = check_directory_permission(
                 file_path, self.settings)
             if dir_allowed:
-                with open(normalized_file_path, 'w') as f:
-                    f.write('')
-                return f"Created a file at '{normalized_file_path}'."
+                try:
+                    with open(normalized_file_path, 'w') as f:
+                        f.write('')
+                    return f"Created a file at '{normalized_file_path}'."
+                except Exception as e:
+                    return f"ERROR: {e}"
             else:
                 return "ERROR: Creating a file outside of the working_directory is not allowed."
         else:

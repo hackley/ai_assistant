@@ -6,7 +6,8 @@ class WriteToFile(Tool):
     name = "WriteToFile"
     description = '''
       Replaces the contents of a file and returns 'true' if successful.
-      Useful for helping the user write code.
+      Useful for helping the user write code. 
+      Remember to always send the full file contents when using this tool.
       `args` should be a dictionary with the following keys: file_path, content.
     '''
 

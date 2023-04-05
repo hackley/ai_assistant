@@ -3,7 +3,8 @@
   "enabled_tools": [
     "create_file",
     "read_file",
-    "write_to_file"
+    "write_to_file",
+    "create_directory"
   ],
   "exit_words": ["exit", "exit."]
 }

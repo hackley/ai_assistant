@@ -36,10 +36,11 @@ for tool_file in tools_path.glob('*.py'):
             tools.append(tool)
 
 
-model = ChatOpenAI(temperature=0, model_name="gpt-4")
+model = ChatOpenAI(temperature=0.8, model_name="gpt-4")
 
 template = '''
   You are a virtual assistant and code-writing partner that has been hired by the user to help with some programing projects. Your job is to help the user by answering questions and performing tasks with your tools.
+  If you run into roadblocks, you can ask the user for more information. But you should always try to complete the task at hand, even if it takes a few tries or approaches.
   {chat_history}
   Human: {question}
   AI:
